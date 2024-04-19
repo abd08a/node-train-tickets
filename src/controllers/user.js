@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import UserModel from "../models/user.js";
+import TicketModel from "../models/ticket.js";
 
 export const SIGN_IN = async (req, res) => {
   try {
@@ -191,6 +192,61 @@ export const GET_LOGGED_IN_USERS = async (req, res) => {
     const loggedInUsers = await UserModel.find({ isLoggedIn: true });
 
     return res.status(200).json({ loggedInUsers: loggedInUsers });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const BUY_TICKET = async (req, res) => {
+  try {
+    // Patikriname ar vartotojas yra prisijungęs (pvz., pagal JWT tokeną)
+    const token = req.headers.authorization;
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized: Missing token" });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      return res.status(401).json({ message: "Unauthorized: Invalid token" });
+    }
+
+    console.log(decoded);
+
+    // Patikriname ar yra tiek user_id, tiek ticket_id
+    const { user_id, ticket_id } = req.body;
+    console.log({ user_id, ticket_id });
+    if (!user_id || !ticket_id) {
+      return res
+        .status(400)
+        .json({ message: "User ID and ticket ID are required" });
+    }
+
+    // Gauname vartotojo duomenis
+    const user = await UserModel.findOne({ id: user_id });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Gauname bilieto duomenis
+    const ticket = await TicketModel.findOne({ id: ticket_id });
+    if (!ticket) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    // Patikriname ar vartotojui pakanka pinigų sąskaitos balanse
+    if (user.money_balance < ticket.ticket_price) {
+      return res.status(400).json({ message: "Insufficient funds" });
+    }
+
+    // Pridedame bilietą prie vartotojo bought_tickets masyvo
+    user.bought_tickets.push(ticket_id);
+    await user.save();
+
+    // Atimame bilieto kainą iš vartotojo money_balance
+    user.money_balance -= ticket.ticket_price;
+    await user.save();
+
+    return res.status(200).json({ message: "Ticket purchased successfully" });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Internal Server Error" });

@@ -76,3 +76,47 @@ export const DELETE_TICKET_BY_ID = async (req, res) => {
     console.log(err);
   }
 };
+
+export const CREATE_TICKET = async (req, res) => {
+  try {
+    // Tikriname, ar yra pateikti visi būtini bilieto duomenys
+    const {
+      title,
+      ticket_price,
+      from_location,
+      to_location,
+      to_location_photo_url,
+    } = req.body;
+    if (
+      !title ||
+      !ticket_price ||
+      !from_location ||
+      !to_location ||
+      !to_location_photo_url
+    ) {
+      return res
+        .status(400)
+        .json({ message: "All ticket details are required" });
+    }
+
+    // Sukuriame naują bilietą
+    const ticket = new TicketModel({
+      id: uuidv4(),
+      title: title,
+      ticket_price: ticket_price,
+      from_location: from_location,
+      to_location: to_location,
+      to_location_photo_url: to_location_photo_url,
+    });
+
+    // Išsaugome bilietą į duomenų bazę
+    await ticket.save();
+
+    return res
+      .status(201)
+      .json({ message: "Ticket created successfully", ticket: ticket });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};

@@ -252,3 +252,45 @@ export const BUY_TICKET = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const GET_USER_BY_ID_WITH_TICKETS = async (req, res) => {
+  try {
+    const token = req.headers.authorization;
+
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized: Missing token" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      return res.status(401).json({ message: "Unauthorized: Invalid token" });
+    }
+
+    const userId = req.params.id;
+
+    const user = await UserModel.aggregate([
+      {
+        $match: { id: userId },
+      },
+      {
+        $lookup: {
+          from: "tickets", // Name of the tickets collection
+          localField: "bought_tickets",
+          foreignField: "id",
+          as: "bought_tickets_agg",
+        },
+      },
+    ]).exec();
+
+    if (!user || user.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // user[0].bought_tickets = user[0].bought_tickets.map((ticket) => ticket.id);
+
+    return res.status(200).json({ user: user[0] });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};

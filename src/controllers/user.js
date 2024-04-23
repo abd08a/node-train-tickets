@@ -15,7 +15,7 @@ export const SIGN_IN = async (req, res) => {
     if (!passwordRegex.test(req.body.password)) {
       return res.status(400).json({
         message:
-          "Password must be at least 6 characters long and contain at least one letter and one number.",
+          "Password must be at least 6 characters long and contain at least one number.",
       });
     }
 
@@ -28,14 +28,16 @@ export const SIGN_IN = async (req, res) => {
       money_balance: req.body.money_balance,
     });
 
-    const response = await user.save();
+    const savedUser = await user.save();
 
-    return res.status(200).json({ users: response });
+    return res
+      .status(200)
+      .json({ message: "User registration successful", user: savedUser });
   } catch (err) {
     console.log(err);
     return res
       .status(400)
-      .json({ message: "bad data, validation unsuccessful" });
+      .json({ message: "Bad data, validation unsuccessful" });
   }
 };
 
@@ -71,9 +73,11 @@ export const LOG_IN = async (req, res) => {
     user.isLoggedIn = true;
     await user.save();
 
-    return res
-      .status(200)
-      .json({ jwt_token: jwt_token, jwt_refresh_token: jwt_refresh_token });
+    return res.status(200).json({
+      message: "User logged in successfully",
+      jwt_token: jwt_token,
+      jwt_refresh_token: jwt_refresh_token,
+    });
   } catch (err) {
     console.log(err);
   }
@@ -81,13 +85,10 @@ export const LOG_IN = async (req, res) => {
 
 export const REFRESH_TOKEN = async (req, res) => {
   try {
-    // Patikriname ar atnaujinimo žetonas buvo pateiktas
+    // Extract the refresh token from the request body
     const jwt_refresh_token = req.body.jwt_refresh_token;
-    if (!jwt_refresh_token) {
-      return res.status(400).json({ message: "Refresh token not provided" });
-    }
 
-    // Patikriname ar atnaujinimo žetonas yra teisingas ir galiojantis
+    // Verify and decode the refresh token to extract user information
     jwt.verify(
       jwt_refresh_token,
       process.env.JWT_REFRESH_SECRET,
@@ -98,39 +99,37 @@ export const REFRESH_TOKEN = async (req, res) => {
           });
         }
 
-        // Jei atnaujinimo žetonas yra teisingas, gauname vartotojo duomenis
-        const user = UserModel.findOne({ email: decoded.email });
+        // Extract user information from the decoded refresh token
+        const { email, user_id } = decoded;
 
-        // Sukuriame naują pagrindinį JWT žetoną
-        const jwt_token = jwt.sign(
-          { email: user.email, user_id: user.id },
-          process.env.JWT_SECRET,
-          { expiresIn: "2h" }
-        );
+        // Use the user information to generate a new JWT token
+        const jwt_token = jwt.sign({ email, user_id }, process.env.JWT_SECRET, {
+          expiresIn: "2h",
+        });
 
-        // Sukuriame naują atnaujinimo žetoną
+        // Generate a new refresh token (if needed)
         const new_jwt_refresh_token = jwt.sign(
-          { email: user.email, user_id: user.id },
+          { email, user_id },
           process.env.JWT_REFRESH_SECRET,
           { expiresIn: "1d" }
         );
 
-        // Grąžiname naują pagrindinį JWT žetoną ir naują atnaujinimo žetoną
+        // Respond with the new JWT token and refresh token
         return res.status(200).json({
-          jwt_token: jwt_token,
+          jwt_token,
           jwt_refresh_token: new_jwt_refresh_token,
         });
       }
     );
   } catch (err) {
-    console.log(err);
+    console.error(err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
 
 export const GET_ALL_USERS = async (req, res) => {
   try {
-    const users = await UserModel.find();
+    const users = await UserModel.find().sort({ name: 1 });
 
     return res.status(200).json({ users: users });
   } catch (err) {
@@ -139,29 +138,8 @@ export const GET_ALL_USERS = async (req, res) => {
   }
 };
 
-// export const GET_USER_BY_ID = async (req, res) => {
-//   try {
-//     const user = await UserModel.findOne({ id: req.params.id });
-
-//     return res.status(200).json({ user: user });
-//   } catch (err) {
-//     console.log(err);
-//   }
-// };
-
 export const GET_USER_BY_ID = async (req, res) => {
   try {
-    // Patikriname ar vartotojas yra prisijungęs (pvz., pagal JWT tokeną)
-    const token = req.headers.authorization;
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized: Missing token" });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded) {
-      return res.status(401).json({ message: "Unauthorized: Invalid token" });
-    }
-
     // Jei vartotojas yra prisijungęs, ieškome vartotojo pagal ID
     const user = await UserModel.findOne({ id: req.params.id });
 
@@ -180,14 +158,6 @@ export const GET_USER_BY_ID = async (req, res) => {
 
 export const GET_LOGGED_IN_USERS = async (req, res) => {
   try {
-    // Extract the JWT token from the request headers
-    const token = req.headers.authorization;
-
-    // If there's no token, return an error (assuming token is required for authentication)
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized: Missing token" });
-    }
-
     // Find all users who are logged in
     const loggedInUsers = await UserModel.find({ isLoggedIn: true });
 
@@ -200,18 +170,6 @@ export const GET_LOGGED_IN_USERS = async (req, res) => {
 
 export const BUY_TICKET = async (req, res) => {
   try {
-    // Patikriname ar vartotojas yra prisijungęs (pvz., pagal JWT tokeną)
-    const token = req.headers.authorization;
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized: Missing token" });
-    }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded) {
-      return res.status(401).json({ message: "Unauthorized: Invalid token" });
-    }
-
-    console.log(decoded);
-
     // Patikriname ar yra tiek user_id, tiek ticket_id
     const { user_id, ticket_id } = req.body;
     console.log({ user_id, ticket_id });
@@ -255,17 +213,6 @@ export const BUY_TICKET = async (req, res) => {
 
 export const GET_USER_BY_ID_WITH_TICKETS = async (req, res) => {
   try {
-    const token = req.headers.authorization;
-
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized: Missing token" });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded) {
-      return res.status(401).json({ message: "Unauthorized: Invalid token" });
-    }
-
     const userId = req.params.id;
 
     const user = await UserModel.aggregate([

@@ -15,12 +15,12 @@ import { auth } from "../middlewares/auth.js";
 const router = express.Router();
 
 router.post("/users", SIGN_IN);
-router.post("/users/login", auth, LOG_IN);
+router.post("/users/login", LOG_IN);
 router.post("/users/refresh", REFRESH_TOKEN);
 router.get("/users", GET_ALL_USERS);
-router.get("/users/logged", GET_LOGGED_IN_USERS);
-router.get("/users/:id", GET_USER_BY_ID);
+router.get("/users/logged", auth, GET_LOGGED_IN_USERS);
+router.get("/users/:id", auth, GET_USER_BY_ID);
 router.post("/buyTicket", auth, BUY_TICKET);
-router.get("/users/:id/tickets", GET_USER_BY_ID_WITH_TICKETS);
+router.get("/users/:id/tickets", auth, GET_USER_BY_ID_WITH_TICKETS);
 
 export default router;
